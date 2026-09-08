@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMPS Converter Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface: { DEFAULT: '#0f1419', raised: '#1a2332', border: '#2d3a4f' },
+            accent: { DEFAULT: '#3b82f6', dim: '#2563eb', glow: '#60a5fa' },
+            warn: '#f59e0b',
+            error: '#ef4444',
+            ok: '#22c55e',
+          },
+          fontFamily: {
+            mono: ['"JetBrains Mono"', '"Fira Code"', 'Consolas', 'monospace'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    input[type='number']::-webkit-inner-spin-button,
+    input[type='number']::-webkit-outer-spin-button { opacity: 0.5; }
+    select { -webkit-appearance: none; appearance: none; }
+    .result-glow { text-shadow: 0 0 15px rgba(96, 165, 250, 0.25); }
+    .mode-btn { color: #94a3b8; }
+    .mode-btn.active { background: #3b82f6; color: white; }
+    .mode-btn:not(.active):hover { background: rgba(59, 130, 246, 0.1); color: #e2e8f0; }
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(45, 58, 79, 0.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(45, 58, 79, 0.35) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden bg-surface text-slate-200 font-sans antialiased grid-bg flex flex-col p-2 sm:p-4">
+  <div class="max-w-5xl w-full mx-auto flex flex-col h-full">
+
+    <!-- Header -->
+    <header class="mb-3 shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
+          <svg class="w-4 h-4 text-accent-glow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white leading-none">SMPS Calculator</h1>
+          <p id="header-subtitle" class="text-xs text-slate-400 mt-1">Buck & Boost inductor sizing and performance</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Calculator Mode Switch -->
+    <div class="mb-3 shrink-0">
+      <div class="inline-flex bg-surface-raised/80 border border-surface-border rounded-lg p-1 gap-1">
+        <button type="button" id="mode-inductor-btn" class="mode-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">
+          Inductor Sizing
+        </button>
+        <button type="button" id="mode-flux-btn" class="mode-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">
+          Transformer Flux (Half-Bridge)
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== INDUCTOR SIZING MODE ==================== -->
+    <div id="mode-inductor" class="grid lg:grid-cols-2 gap-3 flex-1 min-h-0">
+
+      <!-- Inputs -->
+      <section class="bg-surface-raised/80 backdrop-blur border border-surface-border rounded-xl p-4 shadow-xl flex flex-col">
+        <h2 class="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Circuit Parameters</h2>
+
+        <div class="space-y-3 flex-1">
+          <!-- Row 1: Topology & Frequency -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="topology" class="block text-xs font-medium text-slate-300 mb-1">Topology</label>
+              <div class="relative">
+                <select id="topology" class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 font-mono text-sm text-white focus:outline-none focus:border-accent transition">
+                  <option value="buck">Buck (Step-Down)</option>
+                  <option value="boost">Boost (Step-Up)</option>
+                  <option value="buckboost">Buck-Boost</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label for="freq" class="block text-xs font-medium text-slate-300 mb-1">
+                Frequency <span class="text-slate-500 font-normal">(f)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="freq" min="0.001" step="any" value="500"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">kHz</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: Voltages -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="vin" class="block text-xs font-medium text-slate-300 mb-1">
+                Input Voltage <span class="text-slate-500 font-normal">(V<sub>in</sub>)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="vin" min="0.001" step="any" value="12"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">V</span>
+              </div>
+            </div>
+            <div>
+              <label for="vout" class="block text-xs font-medium text-slate-300 mb-1">
+                Output Voltage <span class="text-slate-500 font-normal">(V<sub>out</sub>)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="vout" min="0.001" step="any" value="5"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">V</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Buck-Boost note & polarity toggle -->
+          <div id="bb-note" class="hidden bg-accent/5 border border-accent/20 rounded-lg px-3 py-2 text-xs text-slate-400 leading-relaxed">
+            <label class="flex items-center gap-2 mb-1.5 cursor-pointer select-none">
+              <input type="checkbox" id="inverting" class="accent-accent w-3.5 h-3.5" />
+              <span class="text-slate-300 font-medium">Inverting output (V<sub>out</sub> is a magnitude, output rail is negative)</span>
+            </label>
+            <p>Sized using single-mode 4-switch equations — the conservative case, and identical whether the output is inverting or non-inverting. Some synchronous non-inverting controllers instead switch between plain buck and boost mode away from V<sub>in</sub> ≈ V<sub>out</sub>; check your controller's datasheet if so.</p>
+            <p id="bb-note-detail" class="hidden mt-1 font-mono text-slate-300"></p>
+          </div>
+
+          <!-- Row 3: Load & Ripple -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="iload" class="block text-xs font-medium text-slate-300 mb-1">
+                Load Current <span class="text-slate-500 font-normal">(I<sub>load</sub>)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="iload" min="0.001" step="any" value="2"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">A</span>
+              </div>
+            </div>
+            <div>
+              <label for="ripple" class="block text-xs font-medium text-slate-300 mb-1">
+                Ripple Ratio <span class="text-slate-500 font-normal">(r)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="ripple" min="0.1" max="200" step="any" value="40"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="errors" class="mt-2 space-y-1 hidden"></div>
+      </section>
+
+      <!-- Results -->
+      <div class="space-y-3 flex flex-col min-h-0">
+        
+        <div id="results-invalid" class="hidden bg-surface-raised/80 border border-surface-border rounded-xl p-4 flex-1 flex flex-col items-center justify-center text-center">
+          <p class="text-slate-400 text-sm">Fix input errors to see results</p>
+        </div>
+
+        <div id="results-valid" class="space-y-3 flex-1 flex flex-col min-h-0">
+
+          <!-- Ideal Targets -->
+          <section class="bg-surface-raised/80 border border-accent/20 rounded-xl p-3 shadow-xl shrink-0">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-1.5 h-1.5 rounded-full bg-accent-glow"></div>
+              <h2 class="text-[10px] font-semibold uppercase tracking-widest text-accent-glow">Ideal Targets</h2>
+            </div>
+            <div class="space-y-0">
+              <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                <span class="text-xs text-slate-400">Duty Cycle (D)</span>
+                <span id="out-duty" class="font-mono text-sm font-semibold text-accent-glow result-glow">—</span>
+              </div>
+              <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                <span class="text-xs text-slate-400">Target Ripple (ΔI<sub>L</sub>)</span>
+                <span id="out-ripple" class="font-mono text-sm font-semibold text-white">—</span>
+              </div>
+              <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                <span class="text-xs text-slate-400">Required Inductance (L)</span>
+                <span id="out-inductance" class="font-mono text-sm font-semibold text-white">—</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <span class="text-xs text-slate-400">Peak Current (I<sub>peak</sub>)</span>
+                <span id="out-ipeak" class="font-mono text-sm font-semibold text-white">—</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Component Selection -->
+          <section class="bg-surface-raised/80 border border-surface-border rounded-xl p-3 shadow-xl shrink-0">
+            <div class="flex items-center gap-2 mb-2">
+              <h2 class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Component Selection</h2>
+            </div>
+            <div>
+              <label for="l-actual" class="block text-xs font-medium text-slate-300 mb-1">
+                Selected Inductance <span class="text-slate-500 font-normal">(L<sub>actual</sub>)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="l-actual" min="0.001" step="any"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">μH</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Real-World Performance -->
+          <section class="bg-surface-raised/80 border border-warn/20 rounded-xl p-3 shadow-xl flex-1 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-1.5 h-1.5 rounded-full bg-warn"></div>
+                <h2 class="text-[10px] font-semibold uppercase tracking-widest text-warn">Real-World Performance</h2>
+              </div>
+              
+              <!-- 2-Column Grid to save vertical space -->
+              <div class="grid grid-cols-2 gap-x-6 gap-y-0 mt-1">
+                
+                <!-- Column 1: Inductor Stats -->
+                <div class="space-y-0">
+                  <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                    <span class="text-[11px] text-slate-400">Ripple (ΔI<sub>L</sub>)</span>
+                    <span id="out-ripple-actual" class="font-mono text-xs font-semibold text-white">—</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                    <span class="text-[11px] text-slate-400">Peak (I<sub>peak</sub>)</span>
+                    <span id="out-ipeak-actual" class="font-mono text-xs font-semibold text-white">—</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                    <span class="text-[11px] text-slate-400">Ripple Ratio</span>
+                    <span id="out-ripple-pct-actual" class="font-mono text-xs font-semibold text-white">—</span>
+                  </div>
+                </div>
+
+                <!-- Column 2: Capacitor Stats -->
+                <div class="space-y-0">
+                  <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                    <span class="text-[11px] text-slate-400">C<sub>in</sub> RMS</span>
+                    <span id="out-cin-rms" class="font-mono text-xs font-semibold text-white">—</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                    <span class="text-[11px] text-slate-400">C<sub>out</sub> RMS</span>
+                    <span id="out-cout-rms" class="font-mono text-xs font-semibold text-white">—</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <div class="flex gap-2 mt-3">
+              <button id="searchDistributorBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition-colors">
+                Search Mouser
+              </button>
+              <button id="searchCoilcraftBtn" class="flex-1 bg-error/90 hover:bg-error text-white text-xs font-bold py-1.5 px-3 rounded transition-colors">
+                Search Coilcraft
+              </button>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+    <!-- ==================== END INDUCTOR SIZING MODE ==================== -->
+
+    <!-- ==================== TRANSFORMER FLUX MODE ==================== -->
+    <div id="mode-flux" class="hidden grid lg:grid-cols-2 gap-3 flex-1 min-h-0">
+      <!-- Inputs -->
+      <section class="bg-surface-raised/80 backdrop-blur border border-surface-border rounded-xl p-4 shadow-xl flex flex-col">
+        <h2 class="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Transformer Parameters</h2>
+
+        <div class="space-y-3 flex-1">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="flux-vin" class="block text-xs font-medium text-slate-300 mb-1">
+                Applied Voltage <span class="text-slate-500 font-normal">(V)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="flux-vin" min="0.001" step="any" value="100"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">V</span>
+              </div>
+            </div>
+            <div>
+              <label for="flux-freq" class="block text-xs font-medium text-slate-300 mb-1">
+                Frequency <span class="text-slate-500 font-normal">(f)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="flux-freq" min="0.001" step="any" value="100"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">kHz</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="flux-n" class="block text-xs font-medium text-slate-300 mb-1">
+                Primary Turns <span class="text-slate-500 font-normal">(N)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="flux-n" min="1" step="1" value="20"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">turns</span>
+              </div>
+            </div>
+            <div>
+              <label for="flux-ae" class="block text-xs font-medium text-slate-300 mb-1">
+                Core Area <span class="text-slate-500 font-normal">(A<sub>e</sub>)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="flux-ae" min="0.001" step="any" value="60"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-12 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">mm²</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="flux-bsat" class="block text-xs font-medium text-slate-300 mb-1">
+                Core B<sub>sat</sub> <span class="text-slate-500 font-normal">(editable)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="flux-bsat" min="0.001" step="any" value="300"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-10 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">mT</span>
+              </div>
+            </div>
+            <div>
+              <label for="flux-ve" class="block text-xs font-medium text-slate-300 mb-1">
+                Core Volume <span class="text-slate-500 font-normal">(optional, V<sub>e</sub>)</span>
+              </label>
+              <div class="relative">
+                <input type="number" id="flux-ve" min="0.001" step="any" placeholder="e.g. 4000"
+                  class="input-field w-full bg-surface border border-surface-border rounded px-3 py-1.5 pr-12 font-mono text-sm text-white focus:outline-none focus:border-accent transition" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">mm³</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-accent/5 border border-accent/20 rounded-lg px-3 py-2 text-xs text-slate-400 leading-relaxed">
+            <p>B = V / (8·f·N·A<sub>e</sub>), with A<sub>e</sub> as the core's effective cross-sectional area. Assumes symmetric half-bridge drive.</p>
+            <p class="mt-1">P<sub>v</sub> is calculated for 3F36 material at a fixed 50°C using the extended Steinmetz equation.</p>
+          </div>
+        </div>
+
+        <div id="flux-errors" class="mt-2 space-y-1 hidden"></div>
+      </section>
+
+      <!-- Results -->
+      <div class="space-y-3 flex flex-col min-h-0">
+        <div id="flux-results-invalid" class="hidden bg-surface-raised/80 border border-surface-border rounded-xl p-4 flex-1 flex flex-col items-center justify-center text-center">
+          <p class="text-slate-400 text-sm">Fix input errors to see results</p>
+        </div>
+
+        <div id="flux-results-valid" class="space-y-3 flex-1 flex flex-col min-h-0">
+          <section class="bg-surface-raised/80 border border-accent/20 rounded-xl p-3 shadow-xl shrink-0">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-1.5 h-1.5 rounded-full bg-accent-glow"></div>
+              <h2 class="text-[10px] font-semibold uppercase tracking-widest text-accent-glow">Transformer Results</h2>
+            </div>
+            <div class="space-y-0">
+              <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                <span class="text-xs text-slate-400">Peak Flux Density (B)</span>
+                <span id="flux-out-b" class="font-mono text-lg font-semibold text-accent-glow result-glow">—</span>
+              </div>
+              <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                <span class="text-xs text-slate-400">Core Loss P<sub>v</sub> <span class="text-[10px]">(3F36 @ 50°C)</span></span>
+                <span id="flux-out-pv" class="font-mono text-sm font-semibold text-white">—</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <span class="text-xs text-slate-400">Total Magnetic Loss <span class="text-[10px]">(P<sub>mag</sub>)</span></span>
+                <span id="flux-out-pmag" class="font-mono text-sm font-semibold text-white">—</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="flux-margin-section" class="hidden bg-surface-raised/80 border border-warn/20 rounded-xl p-3 shadow-xl shrink-0">
+            <div class="flex items-center gap-2 mb-2">
+              <div id="flux-margin-dot" class="w-1.5 h-1.5 rounded-full bg-warn"></div>
+              <h2 id="flux-margin-title" class="text-[10px] font-semibold uppercase tracking-widest text-warn">Margin to Saturation</h2>
+            </div>
+            <div class="space-y-0">
+              <div class="flex items-center justify-between py-1 border-b border-surface-border/60">
+                <span class="text-xs text-slate-400">B / B<sub>sat</sub></span>
+                <span id="flux-out-margin" class="font-mono text-sm font-semibold text-white">—</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <span id="flux-out-verdict" class="text-xs font-medium">—</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <!-- ==================== END TRANSFORMER FLUX MODE ==================== -->
+
+  </div>
+
+<!-- Signature -->
+  <div class="fixed bottom-2 left-3 text-[14px] text-slate-400 font-mono pointer-events-none select-none opacity-80 hover:opacity-100 transition-opacity">
+    made by Omri G.
+  </div>
+  
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const circuitFields = ['vin', 'vout', 'freq', 'iload', 'ripple'];
+
+    const E12_BASE = [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2];
+    const E12_SERIES = (() => {
+      const values = [];
+      for (let decade = -3; decade <= 4; decade++) {
+        const scale = Math.pow(10, decade);
+        for (const base of E12_BASE) values.push(base * scale);
+      }
+      return values;
+    })();
+
+    let lActualManual = false;
+
+    function parsePositive(value) {
+      const n = parseFloat(value);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+
+    function formatNum(value, decimals) {
+      if (value >= 1000) return value.toFixed(1);
+      if (value >= 100) return value.toFixed(2);
+      if (value >= 10) return value.toFixed(3);
+      if (value >= 1) return value.toFixed(4);
+      return value.toFixed(decimals ?? 6);
+    }
+
+    function closestE12(target_uH) {
+      let closest = E12_SERIES[0];
+      let minDiff = Math.abs(target_uH - closest);
+      for (const v of E12_SERIES) {
+        const diff = Math.abs(target_uH - v);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closest = v;
+        }
+      }
+      return closest;
+    }
+
+    function validate() {
+      const errors = [];
+      const topology = $('topology').value;
+      const vin = parsePositive($('vin').value);
+      const vout = parsePositive($('vout').value);
+      const freq = parsePositive($('freq').value);
+      const iload = parsePositive($('iload').value);
+      const rippleRaw = parseFloat($('ripple').value);
+      const ripple = Number.isFinite(rippleRaw) && rippleRaw > 0 ? rippleRaw : null;
+      const lActual = parsePositive($('l-actual').value);
+
+      if (vin !== null && vout !== null) {
+        if (topology === 'buck' && vout >= vin) {
+            errors.push('For a Buck converter, V<sub>out</sub> must be less than V<sub>in</sub>');
+        } else if (topology === 'boost' && vout <= vin) {
+            errors.push('For a Boost converter, V<sub>out</sub> must be greater than V<sub>in</sub>');
+        }
+      }
+
+      return { errors, topology, vin, vout, freq, iload, ripple, lActual };
+    }
+
+    function calculate() {
+      const { errors, topology, vin, vout, freq, iload, ripple, lActual } = validate();
+      const errorsEl = $('errors');
+      const resultsValid = $('results-valid');
+      const resultsInvalid = $('results-invalid');
+
+      if (errors.length > 0) {
+        errorsEl.innerHTML = errors.map(e => `<div class="text-xs text-error bg-error/10 border border-error/30 rounded px-2 py-1">${e}</div>`).join('');
+        errorsEl.classList.remove('hidden');
+        resultsValid.classList.add('hidden');
+        resultsInvalid.classList.remove('hidden');
+        return;
+      }
+
+      errorsEl.classList.add('hidden');
+      resultsValid.classList.remove('hidden');
+      resultsInvalid.classList.add('hidden');
+
+      const fHz = freq * 1000;
+      let D, IL_avg, L_H, deltaIL_actual;
+
+      // Core Math based on Topology
+      if (topology === 'buck') {
+          D = vout / vin;
+          IL_avg = iload; 
+          const deltaIL = (ripple / 100) * IL_avg;
+          L_H = (vout * (vin - vout)) / (vin * fHz * deltaIL);
+      } else if (topology === 'boost') {
+          D = 1 - (vin / vout);
+          IL_avg = iload * (vout / vin); 
+          const deltaIL = (ripple / 100) * IL_avg;
+          L_H = (vin * D) / (fHz * deltaIL);
+      } else {
+          D = vout / (vin + vout);
+          IL_avg = iload / (1 - D);
+          const deltaIL = (ripple / 100) * IL_avg;
+          L_H = (vin * D) / (fHz * deltaIL);
+      }
+
+      const deltaIL = (ripple / 100) * IL_avg;
+      const L_uH = L_H * 1e6;
+      const iPeak = IL_avg + deltaIL / 2;
+
+      // Handle E12 rounding
+      let L_actual_uH = lActualManual ? lActual : closestE12(L_uH);
+      if (L_actual_uH === null) {
+        L_actual_uH = closestE12(L_uH);
+        lActualManual = false;
+      }
+
+      if (!lActualManual) {
+        $('l-actual').value = formatNum(L_actual_uH, 4);
+      }
+
+      const bbDetail = $('bb-note-detail');
+      if (topology === 'buckboost' && $('inverting').checked) {
+        bbDetail.textContent = `Output rail ≈ −${formatNum(vout, 2)} V relative to ground`;
+        bbDetail.classList.remove('hidden');
+      } else {
+        bbDetail.classList.add('hidden');
+      }
+
+      // Display Ideal Targets
+      $('out-duty').textContent = formatNum(D * 100, 2) + ' %';
+      $('out-ripple').textContent = formatNum(deltaIL, 3) + ' A';
+      $('out-inductance').textContent = formatNum(L_uH, 2) + ' μH';
+      $('out-ipeak').textContent = formatNum(iPeak, 3) + ' A';
+
+      // Real World Math
+      const L_actual_H = L_actual_uH / 1e6;
+      if (topology === 'buck') {
+          deltaIL_actual = (vout * (vin - vout)) / (vin * fHz * L_actual_H);
+      } else {
+          deltaIL_actual = (vin * D) / (fHz * L_actual_H);
+      }
+      const iPeak_actual = IL_avg + deltaIL_actual / 2;
+      const ripplePct_actual = (deltaIL_actual / IL_avg) * 100;
+
+      // Capacitor RMS Math
+      let Cin_RMS, Cout_RMS;
+      if (topology === 'buck') {
+          Cin_RMS = iload * Math.sqrt(D * (1 - D));
+          Cout_RMS = deltaIL_actual / (2 * Math.sqrt(3));
+      } else if (topology === 'boost') {
+          Cin_RMS = deltaIL_actual / (2 * Math.sqrt(3));
+          Cout_RMS = IL_avg * Math.sqrt(D * (1 - D));
+      } else {
+          // Buck-Boost: Both input and output currents are pulsed
+          Cin_RMS = IL_avg * Math.sqrt(D * (1 - D));
+          Cout_RMS = IL_avg * Math.sqrt(D * (1 - D));
+      }
+
+      // Display Real World Targets
+      $('out-ripple-actual').textContent = formatNum(deltaIL_actual, 3) + ' A';
+      $('out-ipeak-actual').textContent = formatNum(iPeak_actual, 3) + ' A';
+      $('out-ripple-pct-actual').textContent = formatNum(ripplePct_actual, 1) + ' %';
+      
+      $('out-cin-rms').textContent = formatNum(Cin_RMS, 3) + ' A';
+      $('out-cout-rms').textContent = formatNum(Cout_RMS, 3) + ' A';
+    }
+
+    function updateTopologyUI(topology) {
+        $('bb-note').classList.toggle('hidden', topology !== 'buckboost');
+    }
+
+    $('topology').addEventListener('change', (e) => {
+        const vin = parseFloat($('vin').value);
+        const vout = parseFloat($('vout').value);
+        
+        if (e.target.value === 'boost' && vout <= vin) {
+            $('vin').value = vout;
+            $('vout').value = vin;
+        } else if (e.target.value === 'buck' && vout >= vin) {
+            $('vin').value = vout;
+            $('vout').value = vin;
+        }
+        
+        updateTopologyUI(e.target.value);
+        lActualManual = false;
+        calculate();
+    });
+
+    $('inverting').addEventListener('change', calculate);
+
+    circuitFields.forEach((id) => {
+      $(id).addEventListener('input', () => {
+        lActualManual = false;
+        calculate();
+      });
+    });
+
+    $('l-actual').addEventListener('input', () => {
+      lActualManual = true;
+      calculate();
+    });
+
+    updateTopologyUI($('topology').value);
+    calculate();
+
+    // ==================== Calculator Mode Switch ====================
+    const modeInductorEl = $('mode-inductor');
+    const modeFluxEl = $('mode-flux');
+    const modeInductorBtn = $('mode-inductor-btn');
+    const modeFluxBtn = $('mode-flux-btn');
+    const headerSubtitle = $('header-subtitle');
+
+    function setMode(mode) {
+        const isInductor = mode === 'inductor';
+        modeInductorEl.classList.toggle('hidden', !isInductor);
+        modeFluxEl.classList.toggle('hidden', isInductor);
+        modeInductorBtn.classList.toggle('active', isInductor);
+        modeFluxBtn.classList.toggle('active', !isInductor);
+        headerSubtitle.textContent = isInductor
+          ? 'Buck & Boost inductor sizing and performance'
+          : 'Half-bridge transformer core flux density';
+        if (!isInductor) calculateFlux();
+    }
+
+    modeInductorBtn.addEventListener('click', () => setMode('inductor'));
+    modeFluxBtn.addEventListener('click', () => setMode('flux'));
+    setMode('inductor');
+
+    // ==================== Transformer Flux (Half-Bridge) ====================
+    const fluxFields = ['flux-vin', 'flux-freq', 'flux-n', 'flux-ae', 'flux-bsat', 'flux-ve'];
+
+    function validateFlux() {
+      const errors = [];
+      const v = parsePositive($('flux-vin').value);
+      const f = parsePositive($('flux-freq').value);
+      const n = parsePositive($('flux-n').value);
+      const ae = parsePositive($('flux-ae').value);
+      
+      const bsatRaw = $('flux-bsat').value;
+      const bsat = bsatRaw.trim() === '' ? null : parsePositive(bsatRaw);
+
+      const veRaw = $('flux-ve').value;
+      const ve = veRaw.trim() === '' ? null : parsePositive(veRaw);
+
+      if (v === null) errors.push('Applied Voltage (V) must be a positive number');
+      if (f === null) errors.push('Frequency (f) must be a positive number');
+      if (n === null) errors.push('Primary Turns (N) must be a positive number');
+      if (ae === null) errors.push('Core Area (A<sub>e</sub>) must be a positive number');
+      if (bsatRaw.trim() !== '' && bsat === null) errors.push('Core B<sub>sat</sub> must be a positive number, or left blank');
+      if (veRaw.trim() !== '' && ve === null) errors.push('Core Volume (V<sub>e</sub>) must be a positive number, or left blank');
+
+      return { errors, v, f, n, ae, bsat, ve };
+    }
+
+    function calculateFlux() {
+      const { errors, v, f, n, ae, bsat, ve } = validateFlux();
+      const errorsEl = $('flux-errors');
+      const resultsValid = $('flux-results-valid');
+      const resultsInvalid = $('flux-results-invalid');
+
+      if (errors.length > 0) {
+        errorsEl.innerHTML = errors.map(e => `<div class="text-xs text-error bg-error/10 border border-error/30 rounded px-2 py-1">${e}</div>`).join('');
+        errorsEl.classList.remove('hidden');
+        resultsValid.classList.add('hidden');
+        resultsInvalid.classList.remove('hidden');
+        return;
+      }
+
+      errorsEl.classList.add('hidden');
+      resultsValid.classList.remove('hidden');
+      resultsInvalid.classList.add('hidden');
+
+      const B_mT = (1e6 * v) / (8 * f * n * ae);
+      $('flux-out-b').textContent = formatNum(B_mT, 3) + ' mT';
+
+      const temp = 50; 
+      const f_Hz = f * 1000;
+      const B_T = B_mT / 1000;
+      const tempFactor = (0.000083946 * Math.pow(temp, 2)) - (0.010783518 * temp) + 1.232717265;
+      const Pv = (6.83 * Math.pow(f_Hz, 1.43902) * Math.pow(B_T, 3.26718) * tempFactor) / 1000;
+      
+      $('flux-out-pv').textContent = formatNum(Pv, 1) + ' mW/cm³';
+      
+      if (ve !== null) {
+          const volume_cm3 = ve / 1000;
+          const Pmag_mW = Pv * volume_cm3;
+          
+          if (Pmag_mW >= 1000) {
+              $('flux-out-pmag').textContent = formatNum(Pmag_mW / 1000, 2) + ' W';
+          } else {
+              $('flux-out-pmag').textContent = formatNum(Pmag_mW, 1) + ' mW';
+          }
+      } else {
+          $('flux-out-pmag').textContent = '—';
+      }
+
+      const marginSection = $('flux-margin-section');
+      if (bsat !== null) {
+        marginSection.classList.remove('hidden');
+        const pct = (B_mT / bsat) * 100;
+        $('flux-out-margin').textContent = formatNum(pct, 1) + ' %';
+
+        const dot = $('flux-margin-dot');
+        const title = $('flux-margin-title');
+        const verdict = $('flux-out-verdict');
+        dot.className = 'w-1.5 h-1.5 rounded-full';
+        if (pct >= 100) {
+          dot.classList.add('bg-error');
+          title.className = 'text-[10px] font-semibold uppercase tracking-widest text-error';
+          verdict.className = 'text-xs font-medium text-error';
+          verdict.textContent = 'Exceeds Bsat — core will saturate';
+        } else if (pct >= 80) {
+          dot.classList.add('bg-warn');
+          title.className = 'text-[10px] font-semibold uppercase tracking-widest text-warn';
+          verdict.className = 'text-xs font-medium text-warn';
+          verdict.textContent = 'Low margin — consider more turns or a larger core';
+        } else {
+          dot.classList.add('bg-ok');
+          title.className = 'text-[10px] font-semibold uppercase tracking-widest text-ok';
+          verdict.className = 'text-xs font-medium text-ok';
+          verdict.textContent = 'Healthy margin to saturation';
+        }
+      } else {
+        marginSection.classList.add('hidden');
+      }
+    }
+
+    fluxFields.forEach((id) => {
+      $(id).addEventListener('input', calculateFlux);
+    });
+
+    calculateFlux();
+
+    document.getElementById('searchDistributorBtn').addEventListener('click', function() {
+        const lActual = parseFloat(document.getElementById('l-actual').value); 
+        const iPeakText = document.getElementById('out-ipeak-actual').textContent;
+        const iPeakActual = parseFloat(iPeakText);
+
+        const minCurrent = (iPeakActual * 1.2).toFixed(1);
+        const maxCurrent = "100";
+        
+        let searchQuery = "Coilcraft " + lActual + "uH SMD Power Inductor";
+        let encodedQuery = encodeURIComponent(searchQuery);
+        
+        let baseUrl = "https://www.mouser.co.il/c/passive-components/inductors-chokes-coils/";
+        let queryParam = "?q=" + encodedQuery;
+        let currentFilter = "&maximum%20dc%20current=" + minCurrent + "%20A~~" + maxCurrent + "%20A";
+        let routingParam = "&rp=passive-components%2Finductors-chokes-coils%7C~Maximum%20DC%20Current";
+        
+        let finalUrl = baseUrl + queryParam + currentFilter + routingParam;
+        window.open(finalUrl, '_blank');
+    });
+
+    // Coilcraft Power Inductor Finder — just opens the site
+    document.getElementById('searchCoilcraftBtn').addEventListener('click', function() {
+        window.open('https://www.coilcraft.com/en-us/tools/power-inductor-finder/', '_blank');
+    });
+  </script>
+</body>
+</html>
